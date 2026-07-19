@@ -54,6 +54,5 @@ Point claw-code's Anthropic base URL at `http://127.0.0.1:8787`. Listens on
 | `CLAW_PROXY_HOST` | `127.0.0.1` | Listen address. |
 | `CLAW_PROXY_PORT` | `8787` | Listen port. |
 | `CLAW_PROXY_MODEL` | _(unset = none)_ | Force a model on every request. |
-| `CLAW_PROXY_TRACE` | `claw-request-trace.jsonl` | Sanitized request/response trace; empty to disable. |
 
 For personal use with your own Claude Code subscription, on localhost.
