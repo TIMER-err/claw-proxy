@@ -24,7 +24,6 @@ import re
 import secrets
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
 from xxh64 import xxh64
 
@@ -36,7 +35,6 @@ LISTEN_HOST = os.environ.get("CLAW_PROXY_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("CLAW_PROXY_PORT", "8787"))
 UPSTREAM_HOST = "api.anthropic.com"
 UPSTREAM_TIMEOUT_SECONDS = 600
-TRACE_OUTPUT = Path(os.environ.get("CLAW_PROXY_TRACE", "claw-request-trace.jsonl"))
 
 # Optional model override (CLIProxyAPI maps the model; here we only force it).
 MODEL_REWRITE = os.environ.get("CLAW_PROXY_MODEL", "").strip()
@@ -691,10 +689,7 @@ def rewrite_request(path: str, body: bytes, token: str, client_headers: dict[str
 # ---------------------------------------------------------------------------
 
 def write_trace(event: dict) -> None:
-    if not TRACE_OUTPUT.name:
-        return
-    with TRACE_OUTPUT.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n")
+    print(json.dumps(event, ensure_ascii=True, sort_keys=True))
 
 
 # ---------------------------------------------------------------------------
@@ -829,7 +824,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def main():
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), ProxyHandler)
     print(f"Anthropic OAuth proxy listening on http://{LISTEN_HOST}:{LISTEN_PORT}")
-    print(f"claw trace: {TRACE_OUTPUT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
