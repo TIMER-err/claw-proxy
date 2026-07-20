@@ -72,7 +72,7 @@ is ignored — the proxy substitutes your OAuth token — so any placeholder wor
           "tool_call": true,
           "attachment": true,
           "reasoning": true,
-          "limit": { "context": 1000000, "output": 64000 }
+          "limit": { "context": 1000000, "output": 128000 }
         }
       }
     }
