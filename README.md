@@ -88,5 +88,6 @@ is ignored — the proxy substitutes your OAuth token — so any placeholder wor
 | `CLAW_PROXY_HOST` | `127.0.0.1` | Listen address. |
 | `CLAW_PROXY_PORT` | `8787` | Listen port. |
 | `CLAW_PROXY_MODEL` | _(unset = none)_ | Force a model on every request. |
+| `CLAW_PROXY_UPSTREAM_PROXY` | _(unset)_ | Upstream HTTP/HTTPS proxy for the connection to Anthropic, e.g. `http://127.0.0.1:7890` or `http://user:pass@host:port`. Falls back to `HTTPS_PROXY` / `https_proxy`. |
 
 For personal use with your own Claude Code subscription, on localhost.
