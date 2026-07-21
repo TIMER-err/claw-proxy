@@ -16,12 +16,14 @@ signature.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import http.client
 import json
 import os
 import re
 import secrets
+import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -34,7 +36,55 @@ from xxh64 import xxh64
 LISTEN_HOST = os.environ.get("CLAW_PROXY_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("CLAW_PROXY_PORT", "8787"))
 UPSTREAM_HOST = "api.anthropic.com"
+UPSTREAM_PORT = 443
 UPSTREAM_TIMEOUT_SECONDS = 600
+
+# Optional upstream HTTP/HTTPS proxy for the connection to Anthropic, e.g.
+# "http://127.0.0.1:7890" or "http://user:pass@host:port". Falls back to the
+# standard HTTPS_PROXY / https_proxy environment variables.
+UPSTREAM_PROXY = (
+    os.environ.get("CLAW_PROXY_UPSTREAM_PROXY")
+    or os.environ.get("HTTPS_PROXY")
+    or os.environ.get("https_proxy")
+    or ""
+).strip()
+
+
+def _parse_proxy(url: str):
+    """Parse a proxy URL into (host, port, tunnel_headers). tunnel_headers
+    carries Proxy-Authorization when the URL embeds credentials. Returns None
+    when no proxy is configured or the URL is unusable."""
+    if not url:
+        return None
+    if "://" not in url:
+        url = "http://" + url
+    parsed = urllib.parse.urlparse(url)
+    if not parsed.hostname:
+        return None
+    port = parsed.port or 8080
+    headers: dict[str, str] = {}
+    if parsed.username:
+        creds = "{}:{}".format(
+            urllib.parse.unquote(parsed.username),
+            urllib.parse.unquote(parsed.password or ""),
+        )
+        token = base64.b64encode(creds.encode("utf-8")).decode("ascii")
+        headers["Proxy-Authorization"] = f"Basic {token}"
+    return parsed.hostname, port, headers
+
+
+UPSTREAM_PROXY_PARSED = _parse_proxy(UPSTREAM_PROXY)
+
+
+def open_upstream_connection() -> http.client.HTTPSConnection:
+    """Open the HTTPS connection to Anthropic, tunneling through the configured
+    upstream proxy (HTTP CONNECT) when one is set."""
+    if UPSTREAM_PROXY_PARSED:
+        phost, pport, pheaders = UPSTREAM_PROXY_PARSED
+        connection = http.client.HTTPSConnection(phost, pport, timeout=UPSTREAM_TIMEOUT_SECONDS)
+        connection.set_tunnel(UPSTREAM_HOST, UPSTREAM_PORT, headers=pheaders)
+        return connection
+    return http.client.HTTPSConnection(UPSTREAM_HOST, timeout=UPSTREAM_TIMEOUT_SECONDS)
 
 # Anthropic requires max_tokens; fallback used when the client omits it.
 DEFAULT_MODEL_MAX_TOKENS = 1024
@@ -934,7 +984,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             "body": json.loads(rewritten.decode("utf-8")) if rewritten else None,
         })
 
-        connection = http.client.HTTPSConnection(UPSTREAM_HOST, timeout=UPSTREAM_TIMEOUT_SECONDS)
+        connection = open_upstream_connection()
         try:
             connection.request(self.command, upstream_path, body=rewritten, headers=upstream_headers)
             response = connection.getresponse()
@@ -1023,6 +1073,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def main():
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), ProxyHandler)
     print(f"Anthropic OAuth proxy listening on http://{LISTEN_HOST}:{LISTEN_PORT}")
+    if UPSTREAM_PROXY_PARSED:
+        phost, pport, _ = UPSTREAM_PROXY_PARSED
+        print(f"Upstream traffic tunneled through proxy {phost}:{pport}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
